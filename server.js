@@ -25,6 +25,7 @@ app.get("/display", (req, res) => {
 });
 
 let sport = null;
+const MAX_PRESET_SECONDS = 999 * 60 + 59;
 const PRESETS_PATH = path.join(__dirname, "presets.json");
 
 function getDefaultPresets() {
@@ -77,7 +78,8 @@ app.post("/api/presets", (req, res) => {
     }
     const cleaned = incoming.map((v) => {
       const n = Number.isFinite(v) ? v : parseInt(v, 10) || 0;
-      return Math.max(0, n);
+      // 最多 999:59
+      return Math.max(0, Math.min(MAX_PRESET_SECONDS, Math.floor(n)));
     });
     const payload = { presets: cleaned };
     fs.writeFileSync(PRESETS_PATH, JSON.stringify(payload, null, 2), "utf8");
@@ -148,8 +150,10 @@ app.post("/api/serial/time", (req, res) => {
     return res.json({ ok: false, message: "No serial port connected" });
   }
 
-  const clampedM = Math.max(0, Math.min(99, mm));
-  const clampedS = Math.max(0, Math.min(59, ss));
+  // 韌體只能顯示到 99:59，超過時固定送 99:59（而不是 99:SS）
+  const overflow = mm > 99;
+  const clampedM = overflow ? 99 : Math.max(0, mm);
+  const clampedS = overflow ? 59 : Math.max(0, Math.min(59, ss));
   const clampedD = Math.max(0, Math.min(255, dd));
 
   const payload = `{ "m": ${clampedM}, "s": ${clampedS}, "d": ${clampedD} }\n`;

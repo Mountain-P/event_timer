@@ -239,6 +239,8 @@ body {
   margin-bottom: 32px;
   letter-spacing: 0.12em;
   font-weight: 700;
+  /* 保留超過 99:59 時用來靠右對齊的前導空白 */
+  white-space: pre;
 }
 
 .time-display.clock-mode {

@@ -47,6 +47,11 @@ let displaySettings = {
   width: 4,
 };
 
+// 可設定的最大分鐘數（Web 介面）
+const MAX_MINUTES = 999;
+// 超過這個秒數（99:59）時，Web 只顯示分鐘數，實體計時器固定顯示 99:59
+const MAX_MMSS_SECONDS = 99 * 60 + 59;
+
 const DISPLAY_COLOR_MAP = {
   white: "#ffffff",
   lightblue: "#bfdbfe",
@@ -144,6 +149,7 @@ async function savePresetsToServer() {
   }
 }
 
+// 完整 MM:SS（分鐘可超過 99，例如 120:00），用於 Preset 標籤
 function formatTime(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -152,10 +158,31 @@ function formatTime(totalSeconds) {
   return `${mm}:${ss}`;
 }
 
+// 四位數計時器顯示：99:59 以內為 MM:SS；
+// 超過 99:59 只顯示分鐘數（無條件捨去、靠右、前面補空白、無冒號），例如 " 120"
+function formatTimerDisplay(totalSeconds) {
+  if (totalSeconds > MAX_MMSS_SECONDS) {
+    return String(Math.floor(totalSeconds / 60)).padStart(4, " ");
+  }
+  return formatTime(totalSeconds);
+}
+
+// 送往實體計時器的 m / s。
+// 韌體只接受 99:59 以內，超過時固定送 99:59。
+function getSerialTime() {
+  if (displayMode === "clock") {
+    const now = new Date();
+    return { m: now.getHours(), s: now.getMinutes() };
+  }
+  const safeSeconds = Math.abs(currentSeconds);
+  if (safeSeconds > MAX_MMSS_SECONDS) {
+    return { m: 99, s: 59 };
+  }
+  return { m: Math.floor(safeSeconds / 60), s: safeSeconds % 60 };
+}
+
 function render() {
   const safeSeconds = Math.abs(currentSeconds);
-  let outMinutes;
-  let outSeconds;
   let displayText = "00:00";
 
   if (displayMode === "clock") {
@@ -163,8 +190,6 @@ function render() {
     const hours = now.getHours();
     const minutes = now.getMinutes();
     const seconds = now.getSeconds();
-    outMinutes = hours;
-    outSeconds = minutes;
     const hh = String(hours).padStart(2, "0");
     const mm = String(minutes).padStart(2, "0");
     const ss = String(seconds).padStart(2, "0");
@@ -174,7 +199,7 @@ function render() {
     timeDisplay.classList.remove("countup");
     timeDisplay.classList.add("clock-mode");
   } else {
-    displayText = formatTime(safeSeconds);
+    displayText = formatTimerDisplay(safeSeconds);
     timeDisplay.textContent = displayText;
     if (mode === "countup") {
       timeDisplay.classList.add("countup");
@@ -182,8 +207,6 @@ function render() {
       timeDisplay.classList.remove("countup");
     }
     timeDisplay.classList.remove("clock-mode");
-    outMinutes = Math.floor(safeSeconds / 60);
-    outSeconds = safeSeconds % 60;
   }
 
   const payload = {
@@ -204,12 +227,13 @@ function render() {
   }
 
   if (serialConnected) {
+    const { m, s } = getSerialTime();
     fetch("/api/serial/time", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ m: outMinutes, s: outSeconds, d: dimmerValue }),
+      body: JSON.stringify({ m, s, d: dimmerValue }),
     }).catch((err) => {
       console.error("Failed to send serial time", err);
     });
@@ -267,7 +291,7 @@ function readInitialFromInput() {
     minutes = Number.isNaN(minutes) ? 0 : minutes;
     seconds = Number.isNaN(seconds) ? 0 : seconds;
   }
-  minutes = Math.min(Math.max(minutes, 0), 99);
+  minutes = Math.min(Math.max(minutes, 0), MAX_MINUTES);
   seconds = Math.min(Math.max(seconds, 0), 59);
   return minutes * 60 + seconds;
 }
@@ -341,13 +365,13 @@ function stepSeconds(delta) {
   } else if (delta === 1) {
     if (secVal < 59) {
       secVal += 1;
-    } else if (minVal < 99) {
+    } else if (minVal < MAX_MINUTES) {
       minVal += 1;
       secVal = 0;
     }
   }
 
-  minutesInput.value = String(Math.min(Math.max(minVal, 0), 99)).padStart(
+  minutesInput.value = String(Math.min(Math.max(minVal, 0), MAX_MINUTES)).padStart(
     2,
     "0"
   );
@@ -524,10 +548,10 @@ resetBtn.addEventListener("click", resetTimer);
 setBtn.addEventListener("click", () => applyFromInput());
 saveBtn.addEventListener("click", toggleSavingMode);
 minutesUpBtn.addEventListener("click", () =>
-  stepField(minutesInput, 1, 0, 99)
+  stepField(minutesInput, 1, 0, MAX_MINUTES)
 );
 minutesDownBtn.addEventListener("click", () =>
-  stepField(minutesInput, -1, 0, 99)
+  stepField(minutesInput, -1, 0, MAX_MINUTES)
 );
 secondsUpBtn.addEventListener("click", () => stepSeconds(1));
 secondsDownBtn.addEventListener("click", () => stepSeconds(-1));
@@ -563,17 +587,7 @@ if (dimmerSlider && dimmerValueEl) {
     const MIN_INTERVAL = 100;
 
     const send = () => {
-      let minutes;
-      let seconds;
-      if (displayMode === "clock") {
-        const now = new Date();
-        minutes = now.getHours();
-        seconds = now.getMinutes();
-      } else {
-        const safeSeconds = Math.abs(currentSeconds);
-        minutes = Math.floor(safeSeconds / 60);
-        seconds = safeSeconds % 60;
-      }
+      const { m: minutes, s: seconds } = getSerialTime();
       lastDimmerPushAt = Date.now();
       fetch("/api/serial/time", {
         method: "POST",

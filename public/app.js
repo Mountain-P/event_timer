@@ -49,7 +49,7 @@ let displaySettings = {
 
 // 可設定的最大分鐘數（Web 介面）
 const MAX_MINUTES = 999;
-// 超過這個秒數（99:59）時，Web 只顯示分鐘數，實體計時器固定顯示 99:59
+// 實體計時器（韌體）能顯示的最大時間 99:59；超過時固定送 99:59
 const MAX_MMSS_SECONDS = 99 * 60 + 59;
 
 const DISPLAY_COLOR_MAP = {
@@ -149,22 +149,13 @@ async function savePresetsToServer() {
   }
 }
 
-// 完整 MM:SS（分鐘可超過 99，例如 120:00），用於 Preset 標籤
+// MM:SS（分鐘可超過 99，例如 120:00），用於主畫面、/display 與 Preset 標籤
 function formatTime(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   const mm = String(minutes).padStart(2, "0");
   const ss = String(seconds).padStart(2, "0");
   return `${mm}:${ss}`;
-}
-
-// 四位數計時器顯示：99:59 以內為 MM:SS；
-// 超過 99:59 只顯示分鐘數（無條件捨去、靠右、前面補空白、無冒號），例如 " 120"
-function formatTimerDisplay(totalSeconds) {
-  if (totalSeconds > MAX_MMSS_SECONDS) {
-    return String(Math.floor(totalSeconds / 60)).padStart(4, " ");
-  }
-  return formatTime(totalSeconds);
 }
 
 // 送往實體計時器的 m / s。
@@ -199,7 +190,7 @@ function render() {
     timeDisplay.classList.remove("countup");
     timeDisplay.classList.add("clock-mode");
   } else {
-    displayText = formatTimerDisplay(safeSeconds);
+    displayText = formatTime(safeSeconds);
     timeDisplay.textContent = displayText;
     if (mode === "countup") {
       timeDisplay.classList.add("countup");

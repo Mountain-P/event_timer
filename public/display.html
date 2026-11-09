@@ -36,8 +36,12 @@
         font-size: min(35vh, 25vw);
         line-height: 1;
         display: inline-block;
-        /* 保留超過 99:59 時用來靠右對齊的前導空白 */
-        white-space: pre;
+        white-space: nowrap;
+      }
+
+      /* 超過 99:59 時為 MMM:SS（6 個字元），縮小字級避免超出畫面 */
+      #display-time.long {
+        font-size: min(30vh, 20vw);
       }
     </style>
   </head>

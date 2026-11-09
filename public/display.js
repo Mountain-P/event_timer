@@ -20,10 +20,17 @@ function readDisplayState() {
   }
 }
 
+function setDisplayText(text) {
+  const value = text || "00:00";
+  displayTextEl.textContent = value;
+  // MMM:SS（超過 99:59）較長，切換較小字級
+  displayEl.classList.toggle("long", value.length > 5);
+}
+
 function updateFromStorage() {
   const data = readDisplayState();
   if (!data) return;
-  displayTextEl.textContent = data.text || "00:00";
+  setDisplayText(data.text);
 }
 
 function readDisplaySettings() {
@@ -120,7 +127,7 @@ window.addEventListener("storage", (event) => {
 if (socket) {
   socket.on("time:update", (payload) => {
     if (!payload || typeof payload.text !== "string") return;
-    displayTextEl.textContent = payload.text || "00:00";
+    setDisplayText(payload.text);
   });
 
   socket.on("display:settings", (payload) => {
